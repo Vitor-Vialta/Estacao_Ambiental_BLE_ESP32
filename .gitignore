@@ -1,0 +1,7 @@
+# Arquivos que não vão para o GitHub
+Claude outputs/
+*.pdf
+*.csv
+__pycache__/
+*.pyc
+build/

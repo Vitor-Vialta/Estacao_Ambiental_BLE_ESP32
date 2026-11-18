@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1720">
+<title>Estação Ambiental BLE</title>
+<style>
+  :root {
+    --bg: #0f1720;
+    --card: #17212c;
+    --card2: #1d2a37;
+    --text: #e8eef4;
+    --muted: #8a9bab;
+    --line: #2a3a4a;
+    --temp: #ff8a5c;
+    --hum: #4fc3f7;
+    --press: #b39dff;
+    --alt: #6ee7b7;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --accent: #38bdf8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  h1 { font-size: 1.15rem; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  .sub { color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); display: inline-block; margin-right: 6px; transition: background .3s; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  .conn-state { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+
+  button { font: inherit; border: 0; border-radius: 12px; cursor: pointer; }
+  .btn-main { width: 100%; padding: 15px; font-size: 1rem; font-weight: 600;
+    background: var(--accent); color: #04202e; margin-bottom: 8px; }
+  .btn-main.disc { background: #334454; color: var(--text); }
+  .btn-ghost { width: 100%; padding: 10px; background: transparent; color: var(--muted);
+    font-size: .85rem; margin-bottom: 14px; }
+  button:disabled { opacity: .45; cursor: default; }
+
+  .card { background: var(--card); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
+  .metric { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 4px 10px; }
+  .metric .label { color: var(--muted); font-size: .82rem; grid-column: 1 / -1; display: flex; justify-content: space-between; }
+  .metric .val { font-size: 2.6rem; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.05; }
+  .metric .unit { font-size: 1rem; color: var(--muted); font-weight: 500; margin-left: 4px; }
+  .metric .minmax { font-size: .72rem; color: var(--muted); text-align: right; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  canvas { width: 100%; height: 54px; display: block; margin-top: 8px; grid-column: 1 / -1; }
+  .t .val { color: var(--temp); } .h .val { color: var(--hum); } .p .val { color: var(--press); } .a .val { color: var(--alt); }
+  .alt-cfg { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--line); min-width: 0; }
+  .alt-cfg button { min-width: 84px; }
+  .alt-cfg label { font-size: .72rem; color: var(--muted); display: block; }
+  .alt-cfg .f { display: flex; gap: 6px; margin-top: 4px; }
+  .alt-cfg input { flex: 1; min-width: 0; background: var(--card2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 10px; padding: 9px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .alt-cfg button { background: var(--card2); color: var(--alt); padding: 0 10px; font-size: .8rem; font-weight: 600; }
+
+  .row { display: flex; gap: 8px; }
+  .badge { flex: 1; background: var(--card2); border-radius: 10px; padding: 10px; font-size: .85rem; text-align: center; }
+  .badge b { display: block; font-size: .72rem; color: var(--muted); font-weight: 500; margin-bottom: 3px; }
+  .badge .ok { color: var(--ok); } .badge .bad { color: var(--bad); } .badge .unk { color: var(--muted); }
+
+  h2 { font-size: .9rem; margin: 0 0 10px; font-weight: 600; }
+  .interval-now { color: var(--muted); font-size: .82rem; margin-bottom: 10px; }
+  .interval-now span { color: var(--text); font-weight: 600; }
+  .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 10px; }
+  .presets button { background: var(--card2); color: var(--text); padding: 10px 0; font-size: .85rem; }
+  .presets button.sel { background: var(--accent); color: #04202e; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 4px 0 10px; }
+  .send-row { display: flex; gap: 8px; align-items: stretch; }
+  .send-row input { flex: 1; min-width: 0; background: var(--card2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 12px; padding: 12px; font-size: 1rem; font-variant-numeric: tabular-nums; }
+  .send-row button { background: var(--accent); color: #04202e; font-weight: 600; padding: 0 18px; }
+  .hint { color: var(--muted); font-size: .74rem; margin-top: 8px; }
+
+  .loginfo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .loginfo .badge { padding: 9px 6px; }
+  .loginfo .badge span { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .loginfo .badge small { display: block; font-weight: 400; font-size: .72rem; color: var(--muted); margin-top: 2px; }
+  .prog { height: 6px; background: var(--card2); border-radius: 3px; margin: 12px 0 4px; overflow: hidden; display: none; }
+  .prog div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .chk { display: flex; gap: 8px; align-items: center; font-size: .8rem; color: var(--muted); margin: 10px 0; }
+  .chk input { accent-color: var(--accent); width: 18px; height: 18px; }
+  .lg-btns { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+  .lg-btns button { padding: 13px; font-weight: 600; background: var(--accent); color: #04202e; }
+  .lg-btns button.danger { background: var(--card2); color: var(--bad); }
+  #log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .72rem; color: var(--muted);
+    max-height: 130px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; }
+  .warn { background: #3a2a14; color: #fcd59a; border-radius: 12px; padding: 12px 14px; font-size: .85rem; margin-bottom: 12px; display: none; line-height: 1.45; }
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(30px);
+    background: #263646; color: var(--text); padding: 10px 16px; border-radius: 10px; font-size: .85rem; opacity: 0; transition: .25s; pointer-events: none; max-width: 90%; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Estação Ambiental BLE</h1>
+      <div class="sub">ESP32 · AHT10 + BMP280</div>
+    </div>
+    <div class="conn-state"><span class="dot" id="dot"></span><span id="connText">Desconectado</span></div>
+  </header>
+
+  <div class="warn" id="warn"></div>
+
+  <button class="btn-main" id="btnConnect">Conectar ao ESP32</button>
+  <button class="btn-ghost" id="btnDemo">Ver em modo demonstração (sem ESP32)</button>
+
+  <div class="card metric t">
+    <div class="label"><span>Temperatura</span><span id="tAge"></span></div>
+    <div class="val"><span id="tVal">--</span><span class="unit">°C</span></div>
+    <div class="minmax">máx <span id="tMax">--</span><br>mín <span id="tMin">--</span></div>
+    <canvas id="tChart"></canvas>
+  </div>
+
+  <div class="card metric h">
+    <div class="label"><span>Umidade relativa</span></div>
+    <div class="val"><span id="hVal">--</span><span class="unit">%</span></div>
+    <div class="minmax">máx <span id="hMax">--</span><br>mín <span id="hMin">--</span></div>
+    <canvas id="hChart"></canvas>
+  </div>
+
+  <div class="card metric p">
+    <div class="label"><span>Pressão atmosférica</span></div>
+    <div class="val"><span id="pVal">--</span><span class="unit">hPa</span></div>
+    <div class="minmax">máx <span id="pMax">--</span><br>mín <span id="pMin">--</span></div>
+    <canvas id="pChart"></canvas>
+  </div>
+
+  <div class="card metric a">
+    <div class="label"><span>Altitude estimada</span><span>calculada pela pressão</span></div>
+    <div class="val"><span id="aVal">--</span><span class="unit">m</span></div>
+    <div class="minmax">máx <span id="aMax">--</span><br>mín <span id="aMin">--</span></div>
+    <canvas id="aChart"></canvas>
+    <div class="alt-cfg">
+      <div>
+        <label for="p0Input">Pressão ao nível do mar (hPa)</label>
+        <div class="f"><input type="number" id="p0Input" step="0.01" inputmode="decimal" value="1013.25"><button id="btnP0">OK</button></div>
+      </div>
+      <div>
+        <label for="hKnown">Calibrar: altitude real (m)</label>
+        <div class="f"><input type="number" id="hKnown" step="1" inputmode="numeric" placeholder="ex.: 760"><button id="btnCal">Calibrar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Status dos sensores</h2>
+    <div class="row">
+      <div class="badge"><b>AHT10</b><span id="sAht" class="unk">—</span></div>
+      <div class="badge"><b>BMP280</b><span id="sBmp" class="unk">—</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Intervalo de aquisição</h2>
+    <div class="interval-now">Valor atual no ESP32: <span id="intNow">--</span></div>
+    <div class="presets" id="presets">
+      <button data-ms="500">0,5 s</button>
+      <button data-ms="1000">1 s</button>
+      <button data-ms="2000">2 s</button>
+      <button data-ms="5000">5 s</button>
+      <button data-ms="10000">10 s</button>
+    </div>
+    <input type="range" id="slider" min="500" max="60000" step="500" value="2000">
+    <div class="send-row">
+      <input type="number" id="intInput" min="500" max="60000" step="100" value="2000" inputmode="numeric">
+      <button id="btnSend" disabled>Enviar</button>
+    </div>
+    <div class="hint">Em milissegundos, de 500 a 60000. Valores fora da faixa são ignorados pelo ESP32.</div>
+  </div>
+
+  <div class="card" id="logCard">
+    <h2>Registro na memória do ESP32</h2>
+    <div class="loginfo">
+      <div class="badge"><b>Leituras</b><span id="lgN">—</span></div>
+      <div class="badge"><b>Memória usada</b><span id="lgUso">—</span></div>
+      <div class="badge"><b>Hora</b><span id="lgHora">—</span></div>
+    </div>
+    <div class="prog" id="lgProg"><div id="lgBar"></div></div>
+    <div class="hint" id="lgMsg">O ESP32 grava uma leitura a cada 5 min, mesmo sem ninguém conectado. Conecte para baixar.</div>
+    <label class="chk"><input type="checkbox" id="lgBr"> Formato Excel brasileiro (separador ; e vírgula decimal)</label>
+    <div class="lg-btns">
+      <button id="btnCsv" disabled>Baixar CSV</button>
+      <button id="btnClear" class="danger" disabled>Apagar</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Mensagens</h2>
+    <div id="log"></div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== UUIDs (iguais aos do sketch do ESP32) =====
+const SERVICE_UUID  = "7c9e0001-6e4f-4c3b-8b9a-123456789001";
+const TEMP_UUID     = "7c9e0002-6e4f-4c3b-8b9a-123456789002";
+const HUM_UUID      = "7c9e0003-6e4f-4c3b-8b9a-123456789003";
+const PRESS_UUID    = "7c9e0004-6e4f-4c3b-8b9a-123456789004";
+const STATUS_UUID   = "7c9e0005-6e4f-4c3b-8b9a-123456789005";
+const INTERVAL_UUID = "7c9e0006-6e4f-4c3b-8b9a-123456789006";
+const TIME_UUID     = "7c9e0007-6e4f-4c3b-8b9a-123456789007";
+const LOGCTRL_UUID  = "7c9e0008-6e4f-4c3b-8b9a-123456789008";
+const LOGDATA_UUID  = "7c9e0009-6e4f-4c3b-8b9a-123456789009";
+const DEVICE_NAME   = "ESP32_Estacao_Ambiental";
+
+const MAX_PONTOS = 60;
+const dec = new TextDecoder();
+const enc = new TextEncoder();
+const $ = id => document.getElementById(id);
+
+let device = null, chars = {}, statusTimer = null, demoTimer = null, lastUpdate = 0;
+
+// ===== Séries de dados =====
+const series = {
+  t: { data: [], color: "#ff8a5c", digits: 2 },
+  h: { data: [], color: "#4fc3f7", digits: 1 },
+  p: { data: [], color: "#b39dff", digits: 2 },
+  a: { data: [], color: "#6ee7b7", digits: 1 },
+};
+
+// ===== Altitude (fórmula barométrica padrão, a mesma do Adafruit_BMP280::readAltitude) =====
+let p0 = 1013.25;  // pressão de referência ao nível do mar, em hPa
+try { const s = parseFloat(localStorage.getItem("p0")); if (s > 800 && s < 1200) p0 = s; } catch (e) {}
+
+function altitude(p) { return 44330 * (1 - Math.pow(p / p0, 1 / 5.255)); }
+
+function setP0(novo) {
+  p0 = novo;
+  $("p0Input").value = p0.toFixed(2);
+  try { localStorage.setItem("p0", p0); } catch (e) {}
+  // recalcula todo o histórico de altitude com a nova referência
+  series.a.data = [];
+  series.p.data.forEach(p => series.a.data.push(altitude(p)));
+  if (series.a.data.length) refresh("a");
+}
+
+// ===== Utilidades de interface =====
+function log(msg) {
+  const hora = new Date().toLocaleTimeString("pt-BR");
+  const el = $("log");
+  el.textContent = `[${hora}] ${msg}\n` + el.textContent;
+}
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function fmt(v, d) { return v.toFixed(d).replace(".", ","); }
+
+function setConnected(on, label) {
+  $("dot").classList.toggle("on", on);
+  $("connText").textContent = label || (on ? "Conectado" : "Desconectado");
+  const b = $("btnConnect");
+  b.textContent = on ? "Desconectar" : "Conectar ao ESP32";
+  b.classList.toggle("disc", on);
+  $("btnSend").disabled = !on;
+  $("btnDemo").style.display = on ? "none" : "";
+}
+
+function addPoint(key, value) {
+  if (!isFinite(value)) return;
+  const s = series[key];
+  s.data.push(value);
+  if (s.data.length > MAX_PONTOS) s.data.shift();
+  refresh(key);
+  lastUpdate = Date.now();
+  if (key === "p") addPoint("a", altitude(value));
+}
+
+function refresh(key) {
+  const s = series[key], d = s.data;
+  $(key + "Val").textContent = fmt(d[d.length - 1], s.digits);
+  $(key + "Max").textContent = fmt(Math.max(...d), s.digits);
+  $(key + "Min").textContent = fmt(Math.min(...d), s.digits);
+  draw(key);
+}
+
+function draw(key) {
+  const s = series[key], c = $(key + "Chart");
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const d = s.data;
+  if (d.length < 2) return;
+  let min = Math.min(...d), max = Math.max(...d);
+  if (max - min < 1e-6) { min -= 0.5; max += 0.5; }
+  const pad = 4;
+  const x = i => (i / (MAX_PONTOS - 1)) * w;
+  const y = v => h - pad - ((v - min) / (max - min)) * (h - 2 * pad);
+  const off = MAX_PONTOS - d.length;
+
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, s.color + "55"); grad.addColorStop(1, s.color + "00");
+  ctx.beginPath();
+  d.forEach((v, i) => i ? ctx.lineTo(x(i + off), y(v)) : ctx.moveTo(x(i + off), y(v)));
+  ctx.lineTo(x(d.length - 1 + off), h); ctx.lineTo(x(off), h); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+
+  ctx.beginPath();
+  d.forEach((v, i) => i ? ctx.lineTo(x(i + off), y(v)) : ctx.moveTo(x(i + off), y(v)));
+  ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+
+  const lx = x(d.length - 1 + off), ly = y(d[d.length - 1]);
+  ctx.beginPath(); ctx.arc(lx - 2, ly, 3, 0, Math.PI * 2); ctx.fillStyle = s.color; ctx.fill();
+}
+
+function showStatus(texto) {
+  // Formato do ESP32: "AHT20=OK;BMP280=FALHA"
+  const partes = Object.fromEntries(texto.split(";").map(p => p.split("=")));
+  const set = (id, v) => {
+    const el = $(id);
+    el.textContent = v === "OK" ? "OK" : (v ? "FALHA" : "—");
+    el.className = v === "OK" ? "ok" : (v ? "bad" : "unk");
+  };
+  set("sAht", partes["AHT20"] || partes["AHT10"]);
+  set("sBmp", partes["BMP280"]);
+}
+
+function showInterval(ms) {
+  $("intNow").textContent = ms >= 1000 ? `${fmt(ms / 1000, ms % 1000 ? 1 : 0)} s (${ms} ms)` : `${ms} ms`;
+  selectInterval(ms);
+}
+
+function selectInterval(ms) {
+  $("slider").value = ms; $("intInput").value = ms;
+  document.querySelectorAll("#presets button").forEach(b =>
+    b.classList.toggle("sel", +b.dataset.ms === +ms));
+}
+
+// ===== Bluetooth =====
+async function connect() {
+  stopDemo();
+  try {
+    log("Procurando dispositivo...");
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: DEVICE_NAME }, { services: [SERVICE_UUID] }],
+      optionalServices: [SERVICE_UUID],
+    });
+    device.addEventListener("gattserverdisconnected", onDisconnected);
+    setConnected(false, "Conectando...");
+    log("Conectando a " + device.name + "...");
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+
+    chars.t = await service.getCharacteristic(TEMP_UUID);
+    chars.h = await service.getCharacteristic(HUM_UUID);
+    chars.p = await service.getCharacteristic(PRESS_UUID);
+    chars.status = await service.getCharacteristic(STATUS_UUID);
+    chars.interval = await service.getCharacteristic(INTERVAL_UUID);
+
+    // Leitura inicial (READ)
+    for (const k of ["t", "h", "p"]) {
+      const v = parseFloat(dec.decode(await chars[k].readValue()));
+      if (v !== 0) addPoint(k, v);  // ESP32 começa com "0.0" antes da 1ª leitura
+    }
+    await readStatus();
+    await readInterval();
+
+    // Notificações (NOTIFY)
+    for (const k of ["t", "h", "p"]) {
+      chars[k].addEventListener("characteristicvaluechanged", e =>
+        addPoint(k, parseFloat(dec.decode(e.target.value))));
+      await chars[k].startNotifications();
+    }
+
+    // Registro na memória (só existe no firmware novo)
+    try {
+      chars.time = await service.getCharacteristic(TIME_UUID);
+      chars.logctrl = await service.getCharacteristic(LOGCTRL_UUID);
+      chars.logdata = await service.getCharacteristic(LOGDATA_UUID);
+      chars.logdata.addEventListener("characteristicvaluechanged", onLogPacket);
+      await chars.logdata.startNotifications();
+      await chars.time.writeValue(enc.encode(String(Math.floor(Date.now() / 1000))));
+      log("Hora do ESP32 ajustada com a do celular.");
+      await readLogInfo();
+      $("btnCsv").disabled = false; $("btnClear").disabled = false;
+    } catch (e) {
+      chars.time = chars.logctrl = chars.logdata = null;
+      $("lgMsg").textContent = "Este ESP32 está com o firmware antigo, sem registro. Grave a versão nova.";
+      log("Firmware sem registro na memória.");
+    }
+
+    // Status e registro só têm READ: consulta periódica (pausa durante o download)
+    statusTimer = setInterval(async () => {
+      if (dl) return;
+      try { await readStatus(); if (chars.logctrl) await readLogInfo(); } catch (e) {}
+    }, 10000);
+
+    setConnected(true);
+    log("Conectado. Notificações ativas.");
+    toast("Conectado ao ESP32");
+  } catch (err) {
+    if (err.name === "NotFoundError") log("Nenhum dispositivo selecionado.");
+    else { log("Erro: " + err.message); toast("Falha na conexão"); }
+    if (device && device.gatt.connected) device.gatt.disconnect();
+    setConnected(false);
+  }
+}
+
+async function readStatus() {
+  const txt = dec.decode(await chars.status.readValue());
+  showStatus(txt);
+}
+
+async function readInterval() {
+  const ms = parseInt(dec.decode(await chars.interval.readValue()), 10);
+  if (isFinite(ms)) showInterval(ms);
+  return ms;
+}
+
+async function sendInterval() {
+  const ms = Math.round(+$("intInput").value);
+  if (!(ms >= 500 && ms <= 60000)) { toast("Use um valor entre 500 e 60000 ms"); return; }
+  if (demoTimer) { startDemo(ms); showInterval(ms); toast("Intervalo: " + ms + " ms (demo)"); return; }
+  if (!chars.interval) return;
+  try {
+    $("btnSend").disabled = true;
+    await chars.interval.writeValue(enc.encode(String(ms)));   // WRITE como texto ASCII
+    const confirmado = await readInterval();                    // READ para confirmar
+    log(`Intervalo enviado: ${ms} ms · ESP32 confirmou: ${confirmado} ms`);
+    toast(confirmado === ms ? `Intervalo alterado para ${ms} ms` : "ESP32 recusou o valor");
+  } catch (err) {
+    log("Erro ao enviar: " + err.message); toast("Falha ao enviar");
+  } finally {
+    $("btnSend").disabled = !(device && device.gatt.connected);
+  }
+}
+
+// ===== Registro: info, download e conversão para CSV =====
+let dl = null;   // estado do download em andamento
+
+async function readLogInfo() {
+  const txt = dec.decode(await chars.logctrl.readValue());
+  const info = Object.fromEntries(txt.split(";").map(p => p.split("=")));
+  const n = +info.registros || 0, cap = +info.capacidade || 0, per = +info.periodo || 300;
+  const dias = n * per / 86400;
+  $("lgN").innerHTML = n.toLocaleString("pt-BR") +
+    (n ? `<small>≈ ${dias < 1 ? fmt(dias * 24, 0) + " horas" : fmt(dias, dias < 10 ? 1 : 0) + " dias"}</small>` : "");
+  $("lgUso").textContent = cap ? fmt(100 * n / cap, 0) + " %" : "—";
+  $("lgHora").textContent = info.hora === "OK" ? "OK" : "sem hora";
+  $("lgHora").className = info.hora === "OK" ? "ok" : "bad";
+  if (!dl) $("lgMsg").textContent = cap
+    ? `Uma leitura a cada ${per / 60} min. Cabem cerca de ${fmt(cap * per / 86400, 0)} dias; depois os mais antigos são descartados.`
+    : "Memória interna do ESP32 indisponível.";
+}
+
+function progresso(frac, msg) {
+  $("lgProg").style.display = frac === null ? "none" : "block";
+  if (frac !== null) $("lgBar").style.width = (100 * frac).toFixed(1) + "%";
+  if (msg) $("lgMsg").textContent = msg;
+}
+
+async function baixarCsv() {
+  if (demoTimer) { toast("Não disponível no modo demonstração"); return; }
+  if (!chars.logctrl || dl) return;
+  dl = { total: null, buf: null, rec: 0, seq: 0, t0: Date.now(), last: Date.now(), ui: 0 };
+  $("btnCsv").disabled = true; $("btnClear").disabled = true;
+  progresso(0, "Pedindo os dados ao ESP32...");
+  dl.watch = setInterval(() => {
+    if (dl && Date.now() - dl.last > 8000) falhaDl("O ESP32 parou de enviar.");
+  }, 1000);
+  try {
+    await chars.logctrl.writeValue(enc.encode("GET"));
+  } catch (e) { falhaDl("Não foi possível pedir os dados: " + e.message); }
+}
+
+function onLogPacket(e) {
+  if (!dl) return;
+  const v = e.target.value;
+  const seq = v.getUint16(0, true);
+  dl.last = Date.now();
+  if (seq === 0xFFFE) {                       // início: tamanho total
+    dl.total = v.getUint32(2, true);
+    dl.buf = new Uint8Array(dl.total);
+    dl.rec = 0; dl.seq = 0;
+    progresso(0, `Recebendo ${dl.total} bytes...`);
+    return;
+  }
+  if (!dl.buf) return;
+  if (seq === 0xFFFF) {                       // fim
+    if (dl.rec !== dl.total) return falhaDl(`Faltaram dados (${dl.rec} de ${dl.total} bytes). Tente de novo.`);
+    return concluirDl();
+  }
+  if (seq !== dl.seq) return falhaDl(`Pacote perdido (esperava ${dl.seq}, chegou ${seq}). Tente de novo.`);
+  const bytes = new Uint8Array(v.buffer, v.byteOffset + 2, v.byteLength - 2);
+  if (dl.rec + bytes.length > dl.total) return falhaDl("Chegaram dados a mais. Tente de novo.");
+  dl.buf.set(bytes, dl.rec);
+  dl.rec += bytes.length;
+  dl.seq = (dl.seq + 1) % 0xFFF0;
+  if (Date.now() - dl.ui > 250) {
+    dl.ui = Date.now();
+    const kbs = dl.rec / 1024 / Math.max((Date.now() - dl.t0) / 1000, 0.1);
+    progresso(dl.rec / dl.total, `Recebendo... ${fmt(100 * dl.rec / dl.total, 0)} % (${fmt(kbs, 1)} kB/s)`);
+  }
+}
+
+function fimDl() {
+  if (dl) clearInterval(dl.watch);
+  dl = null;
+  const on = !!(device && device.gatt.connected && chars.logctrl);
+  $("btnCsv").disabled = !on; $("btnClear").disabled = !on;
+}
+
+function falhaDl(msg) {
+  if (!dl) return;
+  fimDl();
+  progresso(null, msg);
+  log("Download: " + msg);
+  toast("Falha no download");
+  if (chars.logctrl) chars.logctrl.writeValue(enc.encode("STOP")).catch(() => {});
+}
+
+function concluirDl() {
+  const { buf, t0 } = dl;
+  fimDl();
+  const linhas = decodificarRegistro(buf);
+  const csv = gerarCsv(linhas, $("lgBr").checked);
+  const agora = new Date();
+  const p2 = n => String(n).padStart(2, "0");
+  const nome = `estacao_${agora.getFullYear()}-${p2(agora.getMonth() + 1)}-${p2(agora.getDate())}_${p2(agora.getHours())}${p2(agora.getMinutes())}.csv`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+
+  const comHora = linhas.filter(l => l.unix !== null);
+  let msg = `${linhas.length} leituras salvas em ${nome} (${fmt((Date.now() - t0) / 1000, 0)} s).`;
+  if (comHora.length) msg += ` Período: ${dataHora(comHora[0].unix)} a ${dataHora(comHora[comHora.length - 1].unix)}.`;
+  if (comHora.length < linhas.length) msg += ` ${linhas.length - comHora.length} leituras ficaram sem data/hora.`;
+  progresso(1, msg);
+  log(msg);
+  toast("CSV baixado");
+}
+
+async function apagarRegistro() {
+  if (!chars.logctrl || dl) return;
+  if (!confirm("Apagar todos os registros guardados no ESP32? Isso não pode ser desfeito.")) return;
+  try {
+    await chars.logctrl.writeValue(enc.encode("CLEAR"));
+    await new Promise(r => setTimeout(r, 600));
+    await readLogInfo();
+    progresso(null, "Registros apagados.");
+    log("Registros do ESP32 apagados.");
+  } catch (e) { toast("Falha ao apagar"); }
+}
+
+// ---- conversão (mesmo formato do script baixar_dados.py) ----
+// Registro de 16 bytes: seg(u32) boot(u16) tipo(u8) flags(u8) temp(i16) umid(u16) valor(u32)
+function decodificarRegistro(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const n = Math.floor(buf.byteLength / 16);
+  const regs = [], base = new Map();
+  for (let i = 0; i < n; i++) {
+    const o = i * 16;
+    const r = {
+      seg: dv.getUint32(o, true), boot: dv.getUint16(o + 4, true),
+      tipo: dv.getUint8(o + 6), flags: dv.getUint8(o + 7),
+      temp: dv.getInt16(o + 8, true), umid: dv.getUint16(o + 10, true),
+      valor: dv.getUint32(o + 12, true),
+    };
+    if (r.tipo === 1) base.set(r.boot, r.valor - r.seg);   // hora unix quando a sessão começou
+    regs.push(r);
+  }
+  return regs.filter(r => r.tipo === 0).map(r => ({
+    unix: base.has(r.boot) ? base.get(r.boot) + r.seg : null,
+    temperatura: r.flags & 1 ? r.temp / 100 : null,
+    umidade: r.flags & 1 ? r.umid / 100 : null,
+    pressao: r.flags & 2 ? r.valor / 100 : null,
+    sessao: r.boot, seg: r.seg,
+  }));
+}
+
+function dataHora(unix) {
+  const d = new Date(unix * 1000), p2 = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
+
+function gerarCsv(linhas, br) {
+  const sep = br ? ";" : ",";
+  const num = v => v === null ? "" : (br ? v.toFixed(2).replace(".", ",") : v.toFixed(2));
+  const out = ["data_hora,unix,temperatura_C,umidade_pct,pressao_hPa,sessao,seg_desde_ligar".split(",").join(sep)];
+  for (const l of linhas) {
+    out.push([l.unix === null ? "" : dataHora(l.unix), l.unix === null ? "" : l.unix,
+      num(l.temperatura), num(l.umidade), num(l.pressao), l.sessao, l.seg].join(sep));
+  }
+  return out.join("\r\n") + "\r\n";
+}
+
+function onDisconnected() {
+  if (dl) falhaDl("Conexão perdida durante o download.");
+  clearInterval(statusTimer); chars = {};
+  $("btnCsv").disabled = true; $("btnClear").disabled = true;
+  setConnected(false);
+  log("Desconectado do ESP32.");
+  toast("Conexão perdida");
+}
+
+function disconnect() {
+  if (device && device.gatt.connected) device.gatt.disconnect();
+}
+
+// ===== Modo demonstração =====
+function startDemo(ms = 2000) {
+  clearInterval(demoTimer);
+  let k = series.t.data.length;
+  const tick = () => {
+    k++;
+    addPoint("t", 25 + 1.5 * Math.sin(k / 8) + Math.random() * 0.2);
+    addPoint("h", 58 + 6 * Math.sin(k / 11 + 1) + Math.random() * 0.5);
+    addPoint("p", 935 + 0.8 * Math.sin(k / 15) + Math.random() * 0.1);
+  };
+  tick();
+  demoTimer = setInterval(tick, ms);
+}
+function stopDemo() { clearInterval(demoTimer); demoTimer = null; }
+
+$("btnDemo").addEventListener("click", () => {
+  if (demoTimer) {
+    stopDemo(); setConnected(false);
+    $("btnDemo").textContent = "Ver em modo demonstração (sem ESP32)";
+    log("Modo demonstração encerrado."); return;
+  }
+  startDemo(+$("intInput").value || 2000);
+  showStatus("AHT20=OK;BMP280=OK"); showInterval(+$("intInput").value || 2000);
+  $("connText").textContent = "Demonstração";
+  $("btnSend").disabled = false;
+  $("btnDemo").textContent = "Sair do modo demonstração";
+  log("Modo demonstração: dados simulados.");
+});
+
+// ===== Eventos =====
+$("btnConnect").addEventListener("click", () =>
+  device && device.gatt.connected ? disconnect() : connect());
+$("btnSend").addEventListener("click", sendInterval);
+$("btnCsv").addEventListener("click", baixarCsv);
+$("btnClear").addEventListener("click", apagarRegistro);
+try { $("lgBr").checked = localStorage.getItem("csvBr") === "1"; } catch (e) {}
+$("lgBr").addEventListener("change", e => { try { localStorage.setItem("csvBr", e.target.checked ? "1" : "0"); } catch (x) {} });
+$("slider").addEventListener("input", e => selectInterval(e.target.value));
+$("intInput").addEventListener("input", e => {
+  $("slider").value = e.target.value;
+  document.querySelectorAll("#presets button").forEach(b =>
+    b.classList.toggle("sel", +b.dataset.ms === +e.target.value));
+});
+$("presets").addEventListener("click", e => {
+  if (e.target.dataset.ms) selectInterval(e.target.dataset.ms);
+});
+window.addEventListener("resize", () => Object.keys(series).forEach(draw));
+
+// Altitude: referência manual ou calibração por altitude conhecida
+$("p0Input").value = p0.toFixed(2);
+$("btnP0").addEventListener("click", () => {
+  const v = parseFloat($("p0Input").value);
+  if (!(v > 800 && v < 1200)) { toast("Use um valor entre 800 e 1200 hPa"); return; }
+  setP0(v); log(`Pressão de referência: ${v.toFixed(2)} hPa`); toast("Referência atualizada");
+});
+$("btnCal").addEventListener("click", () => {
+  const h = parseFloat($("hKnown").value);
+  const d = series.p.data;
+  if (!d.length) { toast("Aguarde uma leitura de pressão"); return; }
+  if (!isFinite(h) || h < -500 || h > 9000) { toast("Digite uma altitude válida em metros"); return; }
+  const p = d[d.length - 1];
+  const novo = p / Math.pow(1 - h / 44330, 5.255);   // inverte a fórmula barométrica
+  setP0(novo);
+  log(`Calibrado: ${h} m com P = ${p.toFixed(2)} hPa → referência ${novo.toFixed(2)} hPa`);
+  toast(`Calibrado para ${h} m`);
+});
+
+// "atualizado há X s"
+setInterval(() => {
+  $("tAge").textContent = lastUpdate ? `atualizado há ${Math.round((Date.now() - lastUpdate) / 1000)} s` : "";
+}, 1000);
+
+// ===== Verificação de compatibilidade =====
+if (!navigator.bluetooth) {
+  const w = $("warn");
+  w.style.display = "block";
+  w.innerHTML = "Este navegador não suporta <b>Web Bluetooth</b>. No Android, abra esta página no <b>Google Chrome</b>. " +
+    "No iPhone, use o app gratuito <b>Bluefy</b> (o Safari não suporta). A página também precisa estar em <b>https://</b>.";
+  $("btnConnect").disabled = true;
+}
+log("Pronto. Toque em \"Conectar ao ESP32\".");
+</script>
+</body>
+</html>
