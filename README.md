@@ -1,162 +1,95 @@
+# Estação Ambiental BLE com ESP32
 
-# Estação Ambiental BLE — ESP32 + AHT20 + BMP280 + WRITE
+Estação que mede **temperatura, umidade e pressão** com um ESP32 e envia os dados
+por **Bluetooth Low Energy (BLE)** para o celular. Ela também guarda uma leitura a
+cada 5 minutos na memória interna, por meses, para baixar depois em `.csv`.
 
-## Novidade desta versão
+**▶ [Abrir a interface no celular](https://vitor-vialta.github.io/Estacao_Ambiental_BLE_ESP32/)**
+(Chrome no Android, ou app Bluefy no iPhone)
 
-Foi adicionada uma característica BLE com propriedade **READ + WRITE** para alterar remotamente o intervalo de aquisição.
+## Funcionalidades
 
-## Estrutura GATT
+- Leituras ao vivo por notificação BLE (temperatura, umidade, pressão e status dos sensores)
+- Intervalo de aquisição ajustável pelo celular (500 a 60000 ms), por escrita BLE
+- Interface web com gráficos, máximo/mínimo e altitude estimada pela pressão
+- Registro de uma leitura a cada 5 min na flash (LittleFS), mesmo sem ninguém conectado
+  (de ~140 a ~280 dias de dados)
+- Download dos dados em `.csv` pelo celular (BLE) ou pelo computador (USB)
 
-### Service
-`7c9e0001-6e4f-4c3b-8b9a-123456789001`
+## Hardware
 
-### Temperatura
-`7c9e0002-6e4f-4c3b-8b9a-123456789002`
+| Componente | Função |
+|---|---|
+| ESP32 DEVKIT V1 (ESP-WROOM-32, 30 pinos) | Microcontrolador com BLE |
+| AHT10 (ou AHT20) | Temperatura e umidade (I²C, endereço 0x38) |
+| BMP280 | Pressão (I²C, endereço 0x76 ou 0x77) |
 
-- READ
-- NOTIFY
+### Ligações
 
-### Umidade
-`7c9e0003-6e4f-4c3b-8b9a-123456789003`
+Os dois sensores usam o mesmo barramento I²C.
 
-- READ
-- NOTIFY
-
-### Pressão
-`7c9e0004-6e4f-4c3b-8b9a-123456789004`
-
-- READ
-- NOTIFY
-
-### Status
-`7c9e0005-6e4f-4c3b-8b9a-123456789005`
-
-- READ
-
-### Intervalo de aquisição
-`7c9e0006-6e4f-4c3b-8b9a-123456789006`
-
-- READ
-- WRITE
-
-## Formato do valor
-
-O smartphone deve escrever o intervalo em **milissegundos**, como texto ASCII.
-
-Exemplos:
-
-- `500` -> 0,5 s
-- `1000` -> 1 s
-- `2000` -> 2 s
-- `5000` -> 5 s
-- `10000` -> 10 s
-
-Limites aceitos:
-
-- mínimo: 500 ms
-- máximo: 60000 ms
-
-Se for escrito um valor fora da faixa, o ESP32 ignora a alteração e mantém o intervalo anterior.
-
-## Teste com nRF Connect
-
-1. Faça Scan.
-2. Conecte em `ESP32_Estacao_Ambiental`.
-3. Localize o serviço:
-   `7c9e0001-6e4f-4c3b-8b9a-123456789001`
-4. Localize a characteristic de intervalo:
-   `7c9e0006-6e4f-4c3b-8b9a-123456789006`
-5. Faça READ para visualizar o valor atual.
-6. Faça WRITE.
-7. Selecione UTF-8/Text.
-8. Digite, por exemplo:
-   `5000`
-9. Confirme.
-10. Observe no Monitor Serial que o intervalo muda imediatamente para 5000 ms.
-
-## Exemplo de interação
-
-Valor inicial:
-`2000`
-
-Smartphone envia:
-`5000`
-
-Monitor Serial:
-`Novo intervalo de aquisicao: 5000 ms`
-
-As notificações passam então a ocorrer a cada 5 segundos.
-
-## Conceito didático
-
-A característica WRITE introduz comunicação BLE bidirecional:
-
-```text
-Sensores -> ESP32 -> NOTIFY -> smartphone
-                    ^
-                    |
-                    WRITE
-                    |
-               smartphone
-```
-
-Isso permite transformar o smartphone em interface de configuração remota do sistema embarcado.
-
----
-
-# Registro na memória (datalogger)
-
-A partir desta versão o ESP32 grava **uma leitura a cada 5 minutos** na memória
-flash interna (LittleFS), mesmo sem nenhum celular conectado. Os dados podem
-ser baixados como `.csv` pelo celular (página web) ou pelo PC (USB).
-
-## Capacidade
-
-- Cada leitura ocupa 16 bytes.
-- Com o esquema de partição padrão da placa (1,5 MB de dados), cabem entre
-  ~140 e ~280 dias de leituras. Quando a memória enche, os registros mais
-  antigos são descartados automaticamente.
-
-## Data e hora
-
-O ESP32 não tem relógio com bateria. Cada leitura guarda "sessão + segundos
-desde que ligou", e a hora real é informada:
-
-- automaticamente pela página web, ao conectar;
-- automaticamente pelo script `baixar_dados.py`, ao baixar pelo USB.
-
-Leituras feitas antes da sincronização (na mesma sessão) recebem a hora
-correta retroativamente. Se o ESP32 for ligado e desligado sem nunca receber
-a hora, as leituras daquela sessão ficam no CSV com `data_hora` vazia.
-
-## Novas características GATT
-
-| UUID | Propriedades | Conteúdo |
+| Sensor | Pino do sensor | ESP32 |
 |---|---|---|
-| `7c9e0007-6e4f-4c3b-8b9a-123456789007` | READ, WRITE | Hora unix em texto (escrever ajusta o relógio) |
-| `7c9e0008-6e4f-4c3b-8b9a-123456789008` | READ, WRITE | READ: resumo do registro. WRITE: `GET`, `STOP`, `CLEAR` |
-| `7c9e0009-6e4f-4c3b-8b9a-123456789009` | NOTIFY | Dados binários do registro durante o `GET` |
+| AHT10 e BMP280 | VCC | 3V3 |
+| AHT10 e BMP280 | GND | GND |
+| AHT10 e BMP280 | SDA | GPIO 21 |
+| AHT10 e BMP280 | SCL | GPIO 22 |
+| BMP280 | CSB | 3V3 (seleciona o modo I²C) |
+| BMP280 | SDO | GND (endereço 0x76) |
 
-Formato de cada pacote do `GET`: 2 bytes de sequência (little-endian) + dados.
-`0xFFFE` = início (uint32 com o total de bytes), `0xFFFF` = fim.
+## Como usar
 
-Registro binário (16 bytes, little-endian):
-`seg (u32) | sessao (u16) | tipo (u8: 0 leitura, 1 hora) | flags (u8) | temp×100 (i16) | umid×100 (u16) | pressão×100 ou hora unix (u32)`
+### 1. Gravar o firmware
 
-## Baixar pelo PC (USB)
+1. Instale a [Arduino IDE 2](https://www.arduino.cc/en/software) e o pacote de placas
+   **esp32 (Espressif)** pelo Gerenciador de Placas.
+2. Instale as bibliotecas **Adafruit AHTX0** e **Adafruit BMP280 Library**
+   (aceite instalar as dependências).
+3. Abra `firmware/Estacao_Ambiental_BLE_ESP32/Estacao_Ambiental_BLE_ESP32.ino`.
+4. Selecione a placa **DOIT ESP32 DEVKIT V1** e a porta, e grave.
+5. No Monitor Serial (115200 baud) devem aparecer as leituras a cada 2 s.
 
-1. Feche o Monitor Serial da IDE.
-2. Instale o pyserial (uma vez): `sudo apt install python3-serial`
-3. Rode na pasta do projeto:
+### 2. Ver os dados no celular
+
+Abra a [interface](https://vitor-vialta.github.io/Estacao_Ambiental_BLE_ESP32/) e toque em
+**Conectar ao ESP32**. Ao conectar, a página acerta o relógio do ESP32. Pelo cartão
+**Registro na memória** dá para baixar o `.csv` ou apagar os registros.
+
+Também é possível testar com o app **nRF Connect**, usando os UUIDs do
+[protocolo](docs/PROTOCOLO.md).
+
+### 3. Baixar os dados pelo computador
+
+Com o ESP32 no USB e o Monitor Serial fechado:
 
 ```bash
-python3 baixar_dados.py            # salva estacao_AAAA-MM-DD_HHMM.csv
-python3 baixar_dados.py --br       # formato Excel brasileiro (; e vírgula decimal)
-python3 baixar_dados.py --apagar   # depois de salvar, apaga a memória (pede confirmação)
+sudo apt install python3-serial      # uma vez
+python3 ferramentas/baixar_dados.py          # salva estacao_AAAA-MM-DD_HHMM.csv
+python3 ferramentas/baixar_dados.py --br     # formato do Excel brasileiro (; e vírgula decimal)
+python3 ferramentas/baixar_dados.py --apagar # depois de salvar, apaga a memória (pede confirmação)
 ```
 
-Comandos aceitos pela serial (115200): `INFO`, `T<unix>`, `DUMP`, `CLEAR`.
+Colunas do CSV: `data_hora, unix, temperatura_C, umidade_pct, pressao_hPa, sessao, seg_desde_ligar`
 
-## Colunas do CSV
+## Estrutura do repositório
 
-`data_hora, unix, temperatura_C, umidade_pct, pressao_hPa, sessao, seg_desde_ligar`
+```text
+├── firmware/
+│   └── Estacao_Ambiental_BLE_ESP32/
+│       └── Estacao_Ambiental_BLE_ESP32.ino   código do ESP32
+├── docs/
+│   ├── index.html                            interface web (publicada pelo GitHub Pages)
+│   └── PROTOCOLO.md                          características BLE e formato dos dados
+└── ferramentas/
+    └── baixar_dados.py                       download do registro pelo USB
+```
+
+## Observações
+
+- O ESP32 não tem relógio com bateria. A hora é informada pelo celular ou pelo PC, e as
+  leituras daquela sessão recebem o horário correto, inclusive as anteriores. Se o ESP32
+  for ligado e desligado sem receber a hora, as leituras dessa sessão ficam sem data no CSV.
+- A altitude da interface é uma estimativa pela fórmula barométrica. Para mais precisão,
+  use **Calibrar** informando a altitude real do local.
+- Sensores muito perto da placa podem medir temperatura um pouco acima da ambiente,
+  por causa do calor do próprio ESP32.
